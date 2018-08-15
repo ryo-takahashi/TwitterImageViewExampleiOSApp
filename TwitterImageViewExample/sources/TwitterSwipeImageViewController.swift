@@ -15,11 +15,16 @@ class TwitterSwipeImageViewController: UIViewController {
 }
 
 extension TwitterSwipeImageViewController {
+    
+    enum CloseDirection {
+        case up
+        case down
+    }
+    
     private func setupClosePanGesture() {
         var startPanPointY: CGFloat = 0.0
         var distanceY: CGFloat = 0.0
         let moveAmountYCloseLine: CGFloat = view.bounds.height / 6
-        let backgroundAlphaCalcStandardValue: CGFloat = view.bounds.height / 6
         let minBackgroundAlpha: CGFloat = 0.5
         let maxBackgroundAlpha: CGFloat = 1.0
         
@@ -36,40 +41,34 @@ extension TwitterSwipeImageViewController {
                     distanceY = strongSelf.imageView.center.y - startPanPointY
                     strongSelf.updateHeaderFooterView(isHidden: true)
                 case .changed:
-                    let calcedPosition = CGPoint(x: strongSelf.view.bounds.width / 2, y: distanceY + currentPointY)
-                    strongSelf.imageView.center = calcedPosition
+                    let calcedImageViewPosition = CGPoint(x: strongSelf.view.bounds.width / 2, y: distanceY + currentPointY)
+                    strongSelf.imageView.center = calcedImageViewPosition
                     
                     let moveAmountY = fabs(currentPointY - startPanPointY)
-                    var calcBackgroundAlphaValue = moveAmountY / backgroundAlphaCalcStandardValue * -1 + 1
-                    if calcBackgroundAlphaValue > maxBackgroundAlpha {
-                        calcBackgroundAlphaValue = maxBackgroundAlpha
-                    } else if calcBackgroundAlphaValue < minBackgroundAlpha {
-                        calcBackgroundAlphaValue = minBackgroundAlpha
+                    var backgroundAlpha = moveAmountY / (-moveAmountYCloseLine) + 1
+                    if backgroundAlpha > maxBackgroundAlpha {
+                        backgroundAlpha = maxBackgroundAlpha
+                    } else if backgroundAlpha < minBackgroundAlpha {
+                        backgroundAlpha = minBackgroundAlpha
                     }
-                    strongSelf.view.backgroundColor = strongSelf.view.backgroundColor?.withAlphaComponent(calcBackgroundAlphaValue)
+                    strongSelf.view.backgroundColor = strongSelf.view.backgroundColor?.withAlphaComponent(backgroundAlpha)
                 case .ended:
                     let moveAmountY = currentPointY - startPanPointY
-                    if moveAmountY > moveAmountYCloseLine {
-                        UIView.animate(withDuration: 0.125, animations: {
-                            strongSelf.view.backgroundColor = strongSelf.view.backgroundColor?.withAlphaComponent(0.0)
-                            strongSelf.imageView.center = CGPoint(x: strongSelf.view.bounds.width / 2, y: strongSelf.view.bounds.height + strongSelf.imageView.bounds.height)
-                        }, completion: { _ in
-                            strongSelf.dismiss(animated: false, completion: nil)
-                        })
-                    } else if moveAmountY < moveAmountYCloseLine * -1 {
-                        UIView.animate(withDuration: 0.125, animations: {
-                            strongSelf.view.backgroundColor = strongSelf.view.backgroundColor?.withAlphaComponent(0.0)
-                            strongSelf.imageView.center = CGPoint(x: strongSelf.view.bounds.width / 2, y: -strongSelf.imageView.bounds.height)
-                        }, completion: { _ in
-                            strongSelf.dismiss(animated: false, completion: nil)
-                        })
-                    } else {
-                        UIView.animate(withDuration: 0.25, animations: {
-                            strongSelf.imageView.center = strongSelf.view.center
-                            strongSelf.view.backgroundColor = strongSelf.view.backgroundColor?.withAlphaComponent(1.0)
-                        })
-                        strongSelf.updateHeaderFooterView(isHidden: false)
+                    let isCloseTop = moveAmountY > moveAmountYCloseLine
+                    let isCloseBottom = moveAmountY < moveAmountYCloseLine * -1
+                    if isCloseTop {
+                        strongSelf.dismiss(animateDuration: 0.15, direction: .up)
+                        return
                     }
+                    if isCloseBottom {
+                        strongSelf.dismiss(animateDuration: 0.15, direction: .down)
+                        return
+                    }
+                    UIView.animate(withDuration: 0.25, animations: {
+                        strongSelf.imageView.center = strongSelf.view.center
+                        strongSelf.view.backgroundColor = strongSelf.view.backgroundColor?.withAlphaComponent(1.0)
+                    })
+                    strongSelf.updateHeaderFooterView(isHidden: false)
                 default: break
                 }
             })
@@ -77,6 +76,23 @@ extension TwitterSwipeImageViewController {
         self.view.addGestureRecognizer(panGesture)
     }
     
+    
+    private func dismiss(animateDuration: TimeInterval, direction: CloseDirection) {
+        let imageViewCenterPoint: CGPoint = {
+            switch direction {
+            case .up:
+                return CGPoint(x: view.bounds.width / 2, y: view.bounds.height + imageView.bounds.height)
+            case .down:
+                return CGPoint(x: view.bounds.width / 2, y: -imageView.bounds.height)
+            }
+        }()
+        UIView.animate(withDuration: animateDuration, animations: { [weak self] in
+            self?.view.backgroundColor = self?.view.backgroundColor?.withAlphaComponent(0.0)
+            self?.imageView.center = imageViewCenterPoint
+        }, completion: { [weak self] _ in
+            self?.dismiss(animated: false, completion: nil)
+        })
+    }
     
     // Twitterでいう、「リプライ」「お気に入り」などがあるViewの表示制御処理
     private func updateHeaderFooterView(isHidden: Bool) {
